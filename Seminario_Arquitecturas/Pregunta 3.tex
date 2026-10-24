@@ -1,0 +1,314 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-noshorthands]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\setlength{\emergencystretch}{2.5em}
+
+\definecolor{codebg}{RGB}{246,246,246}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{gray!40},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  commentstyle=\color{gray!70!black},
+  keywordstyle=\color{blue!60!black}\bfseries
+}
+
+\title{\textbf{Seminario de Arquitecturas de Software}\\[2pt]
+\large Respuesta a la Pregunta 3:\\
+Aplicación de DDD y \emph{Bounded Context} en un Dominio Complejo}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{3. Aplicación de DDD y \emph{Bounded Context} en un dominio complejo}
+
+\subsection*{Planteamiento}
+
+Una aseguradora desea construir un sistema para gestionar pólizas de automóviles que
+interactúe con tres subsistemas con lenguajes y preocupaciones propias: el departamento
+de siniestros, el sistema de facturación de primas y la aplicación móvil de los ajustadores
+que evalúan daños en el lugar del accidente. El término ``póliza'' no significa lo mismo en
+cada uno de ellos: para un actuario es un contrato con cláusulas y coberturas, para
+facturación es una fuente de ingresos y de cuotas, y para un ajustador es apenas un número
+de referencia que identifica el siniestro que debe inspeccionar.
+
+Intentar un único modelo de \texttt{Poliza} que satisfaga a todos esos actores conduce al
+problema clásico que Evans (2003) denomina \emph{modelo único para todo el negocio}: un
+modelo sobrecargado, con campos y comportamientos que solo interesan a un área, acoplado a
+bases de datos compartidas y cada vez más difícil de modificar. La respuesta de
+\emph{Domain-Driven Design} (DDD) no es construir un modelo más grande, sino dividir el
+dominio en varios \emph{contextos delimitados} (\emph{Bounded Contexts}), cada uno con su
+propio \emph{lenguaje ubicuo} y su propio modelo, y definir entre ellos relaciones
+explícitas y contratos de integración (Evans, 2003; Richards y Ford, 2020).
+
+\subsection*{1. División del sistema en contextos delimitados}
+
+La primera decisión de diseño es delimitar las fronteras del modelo, no las de la
+organización ni las de la interfaz de usuario. Cada contexto debe agrupar un conjunto
+coherente de conceptos y reglas que un mismo equipo puede mantener y que usan un mismo
+lenguaje. Para este sistema se proponen los siguientes contextos:
+
+\begin{table}[h]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}p{2.7cm}p{3.9cm}p{5.1cm}p{2.9cm}@{}}
+\toprule
+\textbf{Contexto} & \textbf{Lenguaje ubicuo} & \textbf{Responsabilidad / modelo} & \textbf{Tipo (DDD)} \\
+\midrule
+\textbf{Suscripción y Pólizas} &
+Póliza, cláusula, cobertura, vigencia, endoso, asegurado, vehículo &
+Contrato de seguro: emisión, modificaciones, cancelación, reglas de cobertura y versión del contrato. Es la fuente de verdad del contrato. &
+Núcleo (\emph{core domain}) \\
+\addlinespace
+\textbf{Siniestros} &
+Siniestro, reclamación, ocurrencia, beneficiario, dictamen, cobertura aplicable &
+Registro y tramitación del siniestro; determina qué coberturas aplican según la póliza vigente al momento del hecho. &
+Núcleo \\
+\addlinespace
+\textbf{Facturación de Primas} &
+Prima, cuota, recibo, mora, nota de crédito, conciliación &
+Generación y cobro de las obligaciones económicas derivadas de la póliza; no interpreta cláusulas, solo montos y vencimientos. &
+Soporte \\
+\addlinespace
+\textbf{Ajustes en Campo} &
+Ajuste, inspección, daño, evidencia, peritaje, número de referencia &
+Asignación, ejecución y cierre de inspecciones de daños; trabaja con datos mínimos del siniestro y del vehículo. &
+Soporte \\
+\addlinespace
+\textbf{Catálogo y Tarifas} &
+Producto, plan, tarifa, factor de riesgo, cobertura comercial &
+Definición de productos y precios que consumen Suscripción y Facturación. &
+Genérico / soporte \\
+\addlinespace
+\textbf{Identidad y Notificaciones} &
+Usuario, ajustador, asegurado, canal, plantilla &
+Autenticación, autorización y envío de comunicaciones. &
+Genérico \\
+\bottomrule
+\end{tabular}
+\caption{Contextos delimitados propuestos y su lenguaje ubicuo.}
+\end{table}
+
+La delimitación sigue el criterio de Evans (2003): una frontera de contexto es una frontera
+de modelo y de lenguaje. Nótese que ``Póliza'' aparece en varios contextos, pero con
+significados y ciclos de vida diferentes; por eso existen varias clases \texttt{Poliza},
+una por contexto, y no una clase compartida. Esto es intencional: compartir el modelo
+sería precisamente la fuente de contaminación que se quiere evitar.
+
+\subsection*{2. Cómo evitar que el modelo de ``Póliza'' se contamine}
+
+La contaminación se evita con cuatro mecanismos complementarios.
+
+\begin{enumerate}[leftmargin=1.4em]
+\item \textbf{Un modelo por contexto y propiedad exclusiva de los datos.} Cada contexto
+posee su esquema de base de datos y solo ese contexto escribe en él. Siniestros y
+Facturación no acceden a las tablas de Suscripción; obtienen la información por un
+contrato de integración. No existen \emph{joins} ni claves foráneas entre contextos, ni
+entidades JPA/EF compartidas entre módulos.
+
+\item \textbf{Referencias por identidad, no por objeto.} En Siniestros, la póliza se
+representa mediante un objeto de valor \texttt{PolicyId} y, cuando se requiere el detalle,
+mediante una \emph{fotografía} (\emph{snapshot}) inmutable de las cláusulas y coberturas
+vigentes en la fecha del siniestro. Así, una modificación posterior de la póliza (un
+endoso) no altera retroactivamente un siniestro ya dictaminado, y el modelo de Siniestros
+no necesita conocer la estructura interna del contrato.
+
+\item \textbf{Capa anticorrupción (\emph{Anti-Corruption Layer}, ACL).} Todo dato que
+provenga de otro contexto pasa por un traductor que convierte el modelo externo en el
+modelo local. La ACL protege el lenguaje ubicuo: si el sistema de facturación cambia sus
+campos o su semántica, solo se modifica el traductor, no el dominio de Siniestros
+(Evans, 2003; Richards y Ford, 2020).
+
+\item \textbf{Fronteras verificadas automáticamente.} Las dependencias entre contextos se
+restringen por paquetes/namespaces y se validan en integración continua con pruebas de
+arquitectura (por ejemplo, ArchUnit en la JVM o reglas equivalentes en .NET). Un contexto
+no puede importar clases de dominio de otro; solo puede usar sus contratos de integración.
+\end{enumerate}
+
+En consecuencia, el modelo de Póliza del contexto de Suscripción conserva únicamente
+conceptos contractuales (cláusulas, coberturas, vigencias, endosos). Facturación modela
+una \texttt{CuentaDeCobro} con cuotas y recibos derivados de eventos, y Ajustes modela una
+\texttt{AsignacionDeAjuste} con un número de referencia, sin heredar ni replicar el
+contrato completo.
+
+\subsection*{3. Comunicación desacoplada entre contextos}
+
+Los contextos se integran mediante \textbf{eventos de dominio publicados como eventos de
+integración} y mediante \textbf{contratos explícitos} (interfaces de consulta o APIs),
+nunca mediante una base de datos compartida. Los patrones de \emph{context mapping} de
+Evans (2003) permiten nombrar cada relación:
+
+\begin{itemize}[leftmargin=1.4em]
+\item \textbf{Suscripción como \emph{Open Host Service} con \emph{Published Language}}: publica
+un contrato estable (por ejemplo, un esquema de eventos versionado) que otros contextos
+consumen sin conocer su modelo interno.
+\item \textbf{Siniestros y Facturación como consumidores con ACL}: cada uno traduce esos
+eventos a su propio modelo. La relación es de tipo \emph{customer--supplier}: el
+consumidor define sus necesidades y el proveedor se compromete a mantener el contrato.
+\item \textbf{Catálogo y Tarifas como proveedor conforme} (\emph{conformist}) o con ACL,
+según la rigidez del contrato: si el catálogo es corporativo e inmutable, los demás se
+adaptan a él; si no, se interpone una ACL.
+\item \textbf{Identidad y Notificaciones como servicio genérico} consumido por todos,
+con relaciones de tipo \emph{separate ways} respecto del núcleo.
+\end{itemize}
+
+\begin{sloppypar}
+Los eventos típicos son \texttt{PolicyIssued}, \texttt{PolicyEndorsed},
+\texttt{PolicyCancelled}, \texttt{ClaimRegistered}, \texttt{ClaimApproved} y
+\texttt{PaymentReceived}. La comunicación es \textbf{asíncrona} a través de un bus de
+mensajes, lo que desacopla en el tiempo y en el espacio a emisores y consumidores y evita
+que una caída de Facturación detenga la atención de un siniestro. Para no perder eventos
+se aplica el patrón \emph{outbox} transaccional, y para no duplicar efectos, consumidores
+idempotentes. Los procesos que abarcan varios contextos (por ejemplo, aprobar un siniestro
+y generar la indemnización en Facturación) se coordinan con una \emph{saga} o
+\emph{process manager}, aceptando consistencia eventual (Richards y Ford, 2020).
+\end{sloppypar}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  font=\small, scale=0.92, transform shape,
+  ctx/.style={draw, rounded corners, align=center, minimum width=3.1cm,
+              minimum height=1.15cm, fill=blue!4},
+  core/.style={ctx, fill=orange!12, thick},
+  rel/.style={-{Latex[length=2mm]}, thick, gray!70!black},
+  lbl/.style={font=\scriptsize, fill=white, inner sep=1pt}
+]
+\node[core] (pol) {\textbf{Suscripción y Pólizas}\\{\scriptsize Núcleo · OHS/PL}};
+\node[ctx, right=2.6cm of pol] (sin) {\textbf{Siniestros}\\{\scriptsize Núcleo · ACL}};
+\node[ctx, below=1.7cm of sin] (fac) {\textbf{Facturación de Primas}\\{\scriptsize Soporte · ACL}};
+\node[ctx, below=1.7cm of pol] (aju) {\textbf{Ajustes en Campo}\\{\scriptsize Soporte · ACL}};
+\node[ctx, left=1.6cm of pol, yshift=1.0cm] (cat) {\textbf{Catálogo y Tarifas}\\{\scriptsize Genérico}};
+\node[ctx, left=1.6cm of pol, yshift=-1.0cm] (idn) {\textbf{Identidad y Notif.}\\{\scriptsize Genérico}};
+
+\draw[rel] (pol) -- node[lbl, above]{\texttt{PolicyIssued}} (sin);
+\draw[rel] (pol.south) -- node[lbl, left]{\texttt{PolicyEndorsed}} (aju.north);
+\draw[rel] (sin.south) -- node[lbl, right]{\texttt{ClaimRegistered}} (fac.north);
+\draw[rel] (sin) -- node[lbl, above right]{\texttt{ClaimApproved}} (fac);
+\draw[rel, dashed] (cat) -- (pol);
+\draw[rel, dashed] (idn) -- (pol);
+\end{tikzpicture}
+\caption{Mapa de contextos: contratos de integración y eventos principales.}
+\end{figure}
+
+\subsection*{4. Relación con una arquitectura orientada al dominio (Onion/Clean)}
+
+El diseño anterior es independiente del estilo de despliegue, pero encaja naturalmente con
+la Arquitectura Limpia y la Arquitectura Cebolla: \textbf{cada contexto delimitado se
+implementa como un núcleo de dominio aislado}, y las integraciones son detalles
+reemplazables (Martin, 2017; Palermo, 2008).
+
+\begin{itemize}[leftmargin=1.4em]
+\item \textbf{Centro (dominio):} entidades, objetos de valor, agregados, eventos de dominio
+y reglas invariantes del contexto. No conoce frameworks, bases de datos ni HTTP.
+\item \textbf{Aplicación:} casos de uso y \emph{puertos} de entrada y de salida. La Regla de
+Dependencia garantiza que el código fuente solo apunte hacia el centro.
+\item \textbf{Infraestructura:} adaptadores que implementan los puertos (repositorios,
+mensajería, clientes HTTP). Aquí viven las ACL y los traductores entre modelos.
+\item \textbf{Interfaces:} controladores REST, consumidores de eventos y la aplicación móvil
+del ajustador, como adaptadores de entrada.
+\end{itemize}
+
+La ``Guía de Arquitectura N-Capas orientada al Dominio'' de De la Torre Llorente et al.
+(2010) describe este mismo mecanismo con el nombre de \textbf{Adaptador de Servicio}: un
+componente que traduce el contrato de un servicio externo al contrato que espera la capa
+de aplicación, aislando al dominio de la tecnología del proveedor. En términos de
+Arquitectura Limpia, el Adaptador de Servicio es un \emph{adaptador de salida} que
+implementa un \emph{puerto} definido en el núcleo. Por ejemplo, cuando Siniestros necesita
+conocer la póliza, el dominio define el puerto y la infraestructura aporta el adaptador:
+
+\begin{lstlisting}[language=Caml, caption={Puerto en el núcleo y Adaptador de Servicio en infraestructura.}, label={lst:puerto}]
+// Nucleo (capa de dominio/aplicacion): el puerto pertenece al contexto
+public interface PolicyQueryPort {
+    PolicySnapshot findSnapshotBy(PolicyId id, LocalDate occurrenceDate);
+}
+
+// Infraestructura: Adaptador de Servicio + Anti-Corruption Layer
+public sealed class PolicyServiceAdapter implements PolicyQueryPort {
+    private final PolicyApiClient client;      // detalle tecnologico
+    private final PolicyTranslator translator; // ACL
+
+    @Override
+    public PolicySnapshot findSnapshotBy(
+            PolicyId id, LocalDate date) {
+        PolicyDto dto = client.getPolicy(id.value(), date);
+        return translator.toSnapshot(dto); // sin PolicyDto en el dominio
+    }
+}
+\end{lstlisting}
+
+El dominio de Siniestros depende de \texttt{PolicyQueryPort}, no de
+\texttt{PolicyApiClient}; la inyección de dependencias se resuelve en el
+\emph{composition root} de infraestructura. El mismo esquema aplica a la publicación y
+consumo de eventos: el dominio declara \texttt{DomainEventPublisher} y la infraestructura
+lo implementa sobre el bus de mensajes. Así, la Arquitectura Orientada al Dominio no solo
+organiza las capas de cada contexto, sino que hace explícitos los límites entre contextos:
+cada frontera coincide con un puerto y con un contrato versionado.
+
+\subsection*{5. Consecuencias y conclusión}
+
+La división propuesta produce un sistema en el que (i) cada área mantiene su propio
+lenguaje y su propio ritmo de cambio; (ii) el modelo de Póliza del núcleo permanece
+protegido por identidades, fotografías y ACL; (iii) los contextos se comunican por eventos
+y contratos versionados, sin bases de datos compartidas; y (iv) cada contexto puede
+implementarse como un núcleo Onion/Clean con adaptadores de servicio intercambiables. El
+costo es asumir consistencia eventual y una mayor complejidad operativa, que se justifica
+en un dominio complejo donde la autonomía de los equipos y la evolucionabilidad del
+negocio son requisitos de primer orden (Evans, 2003; Richards y Ford, 2020).
+
+\section*{Referencias}
+
+\begin{thebibliography}{9}
+\setlength{\itemsep}{2pt}
+
+\bibitem[Evans, 2003]{evans2003}
+Evans, E. (2003). \emph{Domain-Driven Design: Tackling Complexity in the Heart of
+Software}. Addison-Wesley.
+
+\bibitem[Cockburn, 2005]{cockburn2005}
+Cockburn, A. (2005). \emph{Hexagonal Architecture (Ports and Adapters)}.
+\url{https://alistair.cockburn.us/hexagonal-architecture/}
+
+\bibitem[De la Torre Llorente et al., 2010]{guia2010}
+De la Torre Llorente, C., Zorrilla Castro, U., Ramos Barroso, M. A., y Calvarro Nelson, J.
+(2010). \emph{Guía de Arquitectura N-Capas orientada al Dominio con .NET 4.0}
+(Borrador). Microsoft Ibérica.
+
+\bibitem[Martin, 2017]{martin2017}
+Martin, R. C. (2017). \emph{Clean Architecture: A Craftsman's Guide to Software Structure
+and Design}. Prentice Hall.
+
+\bibitem[Palermo, 2008]{palermo2008}
+Palermo, J. (2008). \emph{The Onion Architecture}.
+\url{https://jeffreypalermo.com/2008/07/the-onion-architecture-part-1/}
+
+\bibitem[Richards y Ford, 2020]{richards2020}
+Richards, M., y Ford, N. (2020). \emph{Fundamentals of Software Architecture: An
+Engineering Approach}. O'Reilly Media.
+
+\end{thebibliography}
+
+\end{document}

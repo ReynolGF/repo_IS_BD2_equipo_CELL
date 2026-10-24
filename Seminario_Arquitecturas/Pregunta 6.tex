@@ -1,0 +1,109 @@
+\documentclass[12pt,a4paper]{article}
+
+% ---------- Paquetes ----------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=blue
+}
+\usepackage{natbib}
+\bibliographystyle{apalike}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{enumitem}
+\usepackage{setspace}
+\onehalfspacing
+
+% ---------- Datos de portada ----------
+\title{
+    \vspace{-2cm}
+    \textbf{Seminario de Arquitecturas de Software:}\\
+    \textbf{Un Análisis Comparativo de Estilos Basados en Capas y Dominio}\\[1cm]
+    \large Ingeniería de Software
+}
+\author{
+    \textbf{Nombre del Equipo:} [Nombre del Equipo]\\[0.5cm]
+    \textbf{Integrantes:}\\
+    [Nombre completo 1] -- Pregunta(s): [Ej. 6]\\
+    [Nombre completo 2] -- Pregunta(s): [Ej. 1, 2]\\
+    [Nombre completo 3] -- Pregunta(s): [Ej. 3, 4]\\
+    [Nombre completo 4] -- Pregunta(s): [Ej. 5]\\[0.5cm]
+    \textbf{Repositorio público:} \url{https://github.com/[usuario]/[repositorio]}
+}
+\date{\today}
+
+\begin{document}
+
+% ---------- Portada ----------
+%\maketitle
+\thispagestyle{empty}
+\newpage
+
+% ---------- Contenido ----------
+\section{Respuesta al Ejercicio 6: Evaluación de la Arquitectura N-Capas frente a Requisitos de Atributos de Calidad}
+
+\subsection{Impacto de las capas abiertas en el aislamiento de capas y la mantenibilidad a largo plazo}
+
+El \textbf{Aislamiento de Capas} es el principio por el cual, en una arquitectura N-Capas cada capa está encapsulada y separada lógicamente de las demás, o sea una capa solo debe comunicarse con la capa inmediatamente inferior a través de interfaces bien definidas, sin saltarse capas, ni acceder directamente a los detalles internos de otra. A este tipo de capas se les denomina \textbf{capas cerradas} y permiten preservar la separación de responsabilidades, de modo que un cambio en una capa no debería afectar a las demás. Por otro lado, mientras que las \textbf{capas cerradas} obligan a una petición a pasar por cada capa, una \textbf{capa abierta} permite que las peticiones se salten capas intermedias. Técnicas como el patrón fast-lane reader aprovechan la estructura de \textbf{capas abiertas} para permitir que la capa de presentación acceda directamente a la capa de persistencia, evitando la lógica de negocio innecesaria y mejorando el rendimieto. Pero la introducción de \textbf{capas abiertas} rompe con el aislamiento de las capas, dando como resultado que un cambio realizado en una capa obligue a modificar al resto de las capas conectadas a ella. Además, se pueden saltar reglas de negocio, validaciones, seguridad o auditoría que residían en las capas intermedias, lo que hace el sistema más frágil y difícil de probar y evolucionar. \\
+En síntesis, las capas abiertas son una optimización táctica de rendimiento que degrada el aislamiento y, con él, la mantenibilidad, por lo que no constituyen una solución estructural a los problemas de la arquitectura N-Capas.
+\subsection{El anti-patrón \textit{Sinkhole} y la regla 80/20}
+
+El \textbf{anti-patrón \textit{sinkhole}} ocurre cuando muchas peticiones atraviesan las capas \textbf{sin que estas ejecuten lógica de negocio real}, limitándose a pasar los datos a la siguiente capa. Richards y Ford lo definen como el escenario en el que ``las capas solo pasan datos sin agregar valor'' \citep{richards2020}. Cada capa añade latencia y complejidad sin beneficio funcional.
+
+Para diagnosticar si este anti-patrón está presente, \citep{richards2015} propone la \textbf{regla 80/20} como heurística práctica:
+\begin{itemize}
+    \item Si \(\leq 20\%\) de las peticiones son \textit{sinkholes}, el nivel es aceptable.
+    \item Si \(\approx 80\%\) de las peticiones son \textit{sinkholes}, se ha elegido la arquitectura equivocada.
+\end{itemize}
+
+La relación con las capas abiertas es directa: \textbf{abrir capas puede aliviar el síntoma} (el rendimiento), pero \textbf{no corrige la causa raíz}. Si la mayoría de las peticiones no necesitan lógica de negocio, el problema no es que las capas estén cerradas, sino que \textbf{la partición técnica de la arquitectura N-Capas no se alinea con el dominio del negocio} \citep{richards2015}. Abrir capas solo enmascara esta desalineación estructural a costa de sacrificar el aislamiento y la mantenibilidad.
+
+\subsection{Por qué Hexagonal y Limpia son inherentemente más adecuadas para escalabilidad y agilidad}
+
+La arquitectura N-Capas se particiona por \textbf{rol técnico} (presentación, negocio, datos). Esto implica que un cambio en un caso de uso de negocio obliga a tocar varias capas, y que la \textbf{unidad de despliegue es única}, lo que limita la escalabilidad y la agilidad. Por el contrario, las arquitecturas Hexagonal y Limpia, especialmente cuando se combinan con \textbf{Domain-Driven Design (DDD)}, permiten organizar el código en torno a \textbf{contextos delimitados} (\textit{Bounded Contexts}) y \textbf{agregados}. DDD ayuda a ``dividir el dominio complejo en múltiples contextos delimitados'' y a ``modelar cada contexto delimitado por separado'' \citep{evans2003}, lo que \textbf{modulariza el sistema por áreas de negocio} y facilita la escalabilidad y la evolución independiente de cada módulo.\\
+Además en la arquitectura N-Capas, aunque exista una interfaz, la dirección de dependencia es descendente: la lógica de negocio sigue dependiendo de la capa de datos. En la \textbf{arquitectura Hexagonal}, el núcleo de la aplicación (la lógica de negocio) está \textbf{aislado de los dispositivos de tiempo de ejecución y las bases de datos}, y se puede desarrollar y probar de forma independiente \citep{cockburn2005}. La \textbf{arquitectura Limpia} lleva este principio a su formulación más rigurosa con la \textbf{Regla de Dependencia}: las dependencias del código fuente solo pueden apuntar hacia adentro, y las capas externas (UI, base de datos, frameworks) son ``plugins'' del núcleo de negocio \citep{martin2017}. Esto hace que el núcleo sea \textbf{agnóstico a la tecnología} y permite cambiar la base de datos, la UI o un servicio externo \textbf{sin tocar la lógica de negocio}, lo cual es la base de la \textbf{agilidad tecnológica} a largo plazo.\\
+Al aislar el núcleo, las \textbf{pruebas unitarias de la lógica de negocio se pueden ejecutar sin necesidad de base de datos, UI o servicios externos}. La arquitectura Hexagonal ``tiene como objetivo crear arquitecturas débilmente acopladas donde los componentes de la aplicación puedan probarse de forma independiente, sin dependencias de almacenes de datos ni interfaces de usuario'' \citep{cockburn2005}. Esta \textbf{alta testabilidad} acelera los ciclos de retroalimentación y permite evolucionar el sistema con seguridad, algo que en una arquitectura N-Capas con capas abiertas se vuelve más difícil debido al acoplamiento introducido.
+
+\subsection{Conclusión}
+Las optimizaciones como las \textbf{capas abiertas} y el \textit{fast-lane reader} son \textbf{parches tácticos} que mitigan un síntoma (el rendimiento) a costa de un atributo de calidad fundamental (el aislamiento y, por tanto, la mantenibilidad). \textbf{No abordan la causa raíz}. Para requisitos de \textbf{alta escalabilidad y agilidad}, las arquitecturas \textbf{Hexagonal} y \textbf{Limpia} ofrecen una solución \textbf{estructural}, al hacer que el núcleo de negocio sea independiente, testeable y verdaderamente desacoplado de los detalles tecnológicos.
+
+% ---------- Declaración de IA ----------
+\section*{Declaración de Uso de Inteligencia Artificial}
+\addcontentsline{toc}{section}{Declaración de Uso de Inteligencia Artificial}
+
+Para la elaboración de este seminario, el equipo utilizó la herramienta ChatGPT (versión GPT-4) con el propósito de generar ideas iniciales para la estructura del documento y mejorar la redacción de algunos párrafos. Todo el contenido generado fue revisado, verificado y adaptado por el equipo, quien asume la responsabilidad final del documento.
+
+% ---------- Referencias ----------
+\newpage
+%\bibliography{referencias} % Si usas un archivo .bib externo
+% Si prefieres un entorno thebibliography, comenta la línea anterior y descomenta el siguiente bloque.
+
+ \begin{thebibliography}{99}
+ \bibitem[Cockburn, 2005]{cockburn2005}
+ Cockburn, A. (2005). \textit{Hexagonal Architecture (Ports and Adapters)}. Recuperado de \url{https://alistair.cockburn.us/hexagonal-architecture/}
+ 
+ \bibitem[De la Torre et al., 2010]{delatorre2010}
+ De la Torre Llorente, C., Zorrilla Castro, U., Ramos Barroso, M. A., \& Calvarro Nelson, J. (2010). \textit{Guía de Arquitectura N-Capas orientada al Dominio con .NET 4.0} (Borrador). Microsoft Ibérica.
+ 
+ \bibitem[Evans, 2003]{evans2003}
+ Evans, E. (2003). \textit{Domain-Driven Design: Tackling Complexity in the Heart of Software}. Addison-Wesley.
+ 
+ \bibitem[Martin, 2017]{martin2017}
+ Martin, R. C. (2017). \textit{Clean Architecture: A Craftsman's Guide to Software Structure and Design}. Prentice Hall.
+ 
+ \bibitem[Richards, 2015]{richards2015}
+ Richards, M. (2015). \textit{Software Architecture Patterns}. O'Reilly Media.
+ 
+ \bibitem[Richards \& Ford, 2020]{richards2020}
+ Richards, M., \& Ford, N. (2020). \textit{Fundamentals of Software Architecture: An Engineering Approach}. O'Reilly Media.
+ \end{thebibliography}
+
+\end{document}

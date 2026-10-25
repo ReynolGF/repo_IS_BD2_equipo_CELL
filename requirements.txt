@@ -1,0 +1,11 @@
+# Framework web y servidor
+fastapi==0.143.5
+uvicorn[standard]==0.54.0
+
+# Base de datos y ORM
+sqlalchemy==2.1.6
+psycopg2-binary==2.9.13
+
+# Autenticación y seguridad
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4

@@ -7,4 +7,9 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  // Estas librerías se cargan bajo demanda (al exportar a PDF); se indican
+  // aquí para que el servidor de desarrollo las prepare al arrancar.
+  optimizeDeps: {
+    include: ["jspdf", "jspdf-autotable"],
+  },
 });

@@ -6,7 +6,9 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "start": "react-router-serve ./build/server/index.js",
-    "typecheck": "react-router typegen && tsc"
+    "typecheck": "react-router typegen && tsc",
+    "test": "node --test \"app/utils/*.test.mjs\"",
+    "test:unit": "node --test \"app/utils/*.test.mjs\""
   },
   "dependencies": {
     "@react-router/node": "^8.5.0",

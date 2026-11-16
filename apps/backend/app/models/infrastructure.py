@@ -72,3 +72,51 @@ class EquipmentLineMembership(Base):
     equipment: Mapped["EquipmentSystem"] = relationship(back_populates="lines")
 
 
+class LineAuthorization(Base):
+    """Líneas en las que un técnico puede generar y/o validar planes.
+
+    Los planes referencian esta tabla con una clave foránea compuesta, así que la base de datos
+    impide que un técnico sin autorización en una línea cree un plan para ella. La FK solo
+    comprueba que exista la fila: que ``can_generate`` sea verdadero se verifica en el servicio.
+    """
+
+    # "authorization" es palabra reservada de PostgreSQL.
+    __tablename__ = "line_authorization"
+
+    id_technician: Mapped[int] = mapped_column(
+        ForeignKey("technician.id_technician", ondelete="RESTRICT", onupdate="CASCADE"),
+        primary_key=True,
+    )
+    id_line: Mapped[int] = mapped_column(
+        ForeignKey("production_line.id_line", ondelete="RESTRICT", onupdate="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+    can_generate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    can_validate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        CheckConstraint("can_generate = TRUE OR can_validate = TRUE", name="at_least_one"),
+    )
+
+    technician: Mapped["Technician"] = relationship(back_populates="authorizations")
+    line: Mapped["ProductionLine"] = relationship(back_populates="authorizations")
+
+
+class LineAssignment(Base):
+    """Asociación N:M entre operarios y las líneas en las que están asignados."""
+
+    __tablename__ = "line_assignment"
+
+    id_operator: Mapped[int] = mapped_column(
+        ForeignKey("operator.id_operator", ondelete="RESTRICT", onupdate="CASCADE"),
+        primary_key=True,
+    )
+    id_line: Mapped[int] = mapped_column(
+        ForeignKey("production_line.id_line", ondelete="RESTRICT", onupdate="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+
+    operator: Mapped["Operator"] = relationship(back_populates="assigned_lines")
+    line: Mapped["ProductionLine"] = relationship(back_populates="assigned_operators")

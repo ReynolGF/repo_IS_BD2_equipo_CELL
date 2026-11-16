@@ -1,0 +1,8 @@
+-r requirements.txt
+pytest>=8
+pytest-cov
+httpx
+testcontainers[postgres,mongodb,redis]>=4
+ruff
+mypy
+pre-commit

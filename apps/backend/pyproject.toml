@@ -1,6 +1,8 @@
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Las migraciones se generan con Alembic; no se revisan ni se formatean a mano.
+extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 # E/F: errores y pyflakes, I: orden de imports, B: bugbear, UP: pyupgrade,
@@ -16,7 +18,12 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Security"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D"]
+# La fixture compartida "world" se importa y se usa como argumento (F811 es falso positivo).
+"tests/integration/test_reinspections_api.py" = ["D", "F811"]
 "alembic/*" = ["D"]
+# SQLAlchemy resuelve las anotaciones de relationship() por nombre: se conserva
+# Optional["Clase"] y List["Clase"], que son la forma documentada para referencias circulares.
+"app/models/*" = ["UP"]
 
 [tool.mypy]
 python_version = "3.12"

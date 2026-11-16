@@ -51,11 +51,13 @@ class Plan(Base):
     system_coverage: Mapped[int] = mapped_column(Integer, nullable=False)
     total_task_count: Mapped[int] = mapped_column(Integer, nullable=False)
 
-
+    # Columnas "planas": sus claves foráneas se declaran en __table_args__ porque id_line e
+    # id_creator_technician participan además en la FK compuesta hacia line_authorization.
     id_line: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     id_creator_technician: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     id_origin_revision: Mapped[Optional[int]] = mapped_column(
-
+        # use_alter rompe el ciclo plan <-> revision al crear las tablas. UNIQUE admite varios
+        # NULL en PostgreSQL: solo limita a un plan por revisión de origen.
         ForeignKey(
             "revision.id_revision",
             use_alter=True,

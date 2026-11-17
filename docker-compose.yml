@@ -2,13 +2,13 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-cell}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cell}
-      POSTGRES_DB: ${POSTGRES_DB:-cell}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-sistema_mantenimiento}
     ports: ["5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cell} -d ${POSTGRES_DB:-cell}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sistema_mantenimiento}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -37,11 +37,15 @@ services:
     env_file: .env
     environment:
       # Dentro de la red de Docker los hosts son los nombres de servicio, no localhost.
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cell}:${POSTGRES_PASSWORD:-cell}@postgres:5432/${POSTGRES_DB:-cell}
-      MONGO_URL: mongodb://mongo:27017
+      POSTGRES_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sistema_mantenimiento}
+      MONGO_DB_URL: mongodb://mongo:27017
       REDIS_URL: redis://redis:6379/0
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    volumes: ["./apps/backend/app:/code/app"]
+    # Aplica las migraciones pendientes y después arranca la API.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./apps/backend/app:/code/app
+      # Permite crear migraciones dentro del contenedor y que aparezcan en su carpeta local.
+      - ./apps/backend/alembic:/code/alembic
     ports: ["8000:8000"]
     depends_on:
       postgres: {condition: service_healthy}

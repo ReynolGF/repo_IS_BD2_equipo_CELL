@@ -4,6 +4,9 @@ Los servicios lanzan estas excepciones y no conocen HTTP; el manejador registrad
 ``register_exception_handlers`` las convierte en respuestas ``{"detail": "..."}``.
 """
 
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
 
 class AppError(Exception):
     """Error base de la aplicación."""
@@ -44,3 +47,15 @@ class BusinessRuleError(AppError):
     """La petición es válida pero incumple una regla de negocio (422)."""
 
     status_code = 422
+
+
+def register_exception_handlers(app: FastAPI) -> None:
+    """Registra en la aplicación la conversión de ``AppError`` a respuestas JSON."""
+
+    @app.exception_handler(AppError)
+    async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+        """Devuelve el error de dominio con su código HTTP."""
+        headers = {"WWW-Authenticate": "Bearer"} if isinstance(exc, AuthenticationError) else None
+        return JSONResponse(
+            status_code=exc.status_code, content={"detail": exc.detail}, headers=headers
+        )

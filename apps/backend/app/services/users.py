@@ -5,7 +5,6 @@ Los usuarios no se eliminan: se desactivan con ``is_active = False`` para conser
 
 from collections.abc import Sequence
 
-from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -87,6 +86,12 @@ def create_user(db: Session, data: UserCreate) -> User:
     return user
 
 
+def _ensure_not_self(user: User, actor: User) -> None:
+    """Impide que el administrador desactive su propia cuenta."""
+    if user.id_user == actor.id_user:
+        raise BusinessRuleError("No puedes desactivar tu propia cuenta")
+
+
 def _apply_profile_changes(user: User, changes: dict[str, object]) -> None:
     """Aplica los cambios de los campos de perfil, comprobando que correspondan al rol."""
     for field, role in _PROFILE_FIELDS.items():
@@ -128,7 +133,11 @@ def update_user(db: Session, user: User, data: UserUpdate, actor: User) -> User:
     if changes.get("password") is not None:
         user.password_hash = hash_password(changes["password"])
 
-    _apply_profile_changes(user, changes)
+    is_active = changes.get("is_active")
+    if is_active is not None and is_active != user.is_active:
+        if not is_active:
+            _ensure_not_self(user, actor)
+        user.is_active = is_active
 
     try:
         db.commit()

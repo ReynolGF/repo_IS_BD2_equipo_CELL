@@ -2,12 +2,79 @@
 
 from typing import TYPE_CHECKING, Self
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.db.enums import Occupation, Shift
+from app.schemas.auth import Password
 
 if TYPE_CHECKING:
     from app.models.users import User
+
+
+class UserCreate(BaseModel):
+    """Datos para crear un usuario. Los campos del perfil dependen del rol.
+
+    - ``technician``: exige ``specialty``.
+    - ``operator``: exige ``age`` y ``shift``.
+    - ``plant_manager`` y ``administrator``: no admiten campos de perfil.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    name: str = Field(min_length=1, max_length=150)
+    email: EmailStr
+    password: Password
+    occupation: Occupation
+    specialty: str | None = Field(default=None, min_length=1, max_length=150)
+    age: int | None = Field(default=None, gt=0, le=120)
+    shift: Shift | None = None
+
+    @field_validator("email")
+    @classmethod
+    def _lowercase_email(cls, value: str) -> str:
+        """Normaliza el correo a minúsculas."""
+        return value.lower()
+
+    @model_validator(mode="after")
+    def _check_profile_fields(self) -> Self:
+        """Comprueba que estén exactamente los campos de perfil que corresponden al rol."""
+        required: dict[Occupation, set[str]] = {
+            Occupation.technician: {"specialty"},
+            Occupation.operator: {"age", "shift"},
+            Occupation.plant_manager: set(),
+            Occupation.administrator: set(),
+        }
+        needed = required[self.occupation]
+        for field in ("specialty", "age", "shift"):
+            present = getattr(self, field) is not None
+            if field in needed and not present:
+                raise ValueError(f"El campo '{field}' es obligatorio para {self.occupation.value}")
+            if field not in needed and present:
+                raise ValueError(f"El campo '{field}' no aplica a {self.occupation.value}")
+        return self
+
+
+class UserUpdate(BaseModel):
+    """Datos modificables de un usuario. Solo se cambian los campos enviados.
+
+    El rol no se puede cambiar. Los campos de perfil deben corresponder al rol del usuario.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    name: str | None = Field(default=None, min_length=1, max_length=150)
+    email: EmailStr | None = None
+    password: Password | None = None
+    is_active: bool | None = None
+    specialty: str | None = Field(default=None, min_length=1, max_length=150)
+    age: int | None = Field(default=None, gt=0, le=120)
+    shift: Shift | None = None
+
+    @field_validator("email")
+    @classmethod
+    def _lowercase_email(cls, value: str | None) -> str | None:
+        """Normaliza el correo a minúsculas."""
+        return value.lower() if value is not None else None
 
 
 class UserRead(BaseModel):
@@ -48,3 +115,12 @@ class UserRead(BaseModel):
         if user.admin is not None:
             data["id_admin"] = user.admin.id_admin
         return cls.model_validate(data)
+
+
+class UserPage(BaseModel):
+    """Página de resultados de la lista de usuarios."""
+
+    items: list[UserRead]
+    total: int
+    limit: int
+    offset: int

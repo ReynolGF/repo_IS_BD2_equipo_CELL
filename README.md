@@ -31,6 +31,19 @@ docker compose up --build
 
 En Windows, usar `copy .env.example .env` en lugar de `cp`.
 
+### Crear el primer administrador
+
+Solo un administrador puede crear usuarios, así que el primero se crea por consola (pide la
+contraseña sin mostrarla):
+
+```bash
+docker compose exec api python -m app.scripts.create_admin --name "Ana Pérez" --email ana@planta.com
+```
+
+Después, en http://localhost:8000/docs: `POST /auth/login`, copiar el `access_token` y pulsar
+**Authorize** para probar el resto de endpoints. Más detalles en
+[docs/seguridad-y-usuarios.md](docs/seguridad-y-usuarios.md).
+
 ## Desarrollo del backend (sin Docker para la API)
 
 Levantar solo las bases de datos y ejecutar la API en local:

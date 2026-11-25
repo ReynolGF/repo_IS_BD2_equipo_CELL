@@ -11,8 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessRuleError, ConflictError, NotFoundError
 from app.core.security import hash_password
-from app.db.enums import Occupation, PlanStatus
-from app.models.plans import Plan, PlanOperatorAssignment
+from app.db.enums import Occupation
 from app.models.users import Administrator, Operator, PlantManager, Technician, User
 from app.repositories import users as users_repo
 from app.schemas.users import UserCreate, UserUpdate
@@ -88,30 +87,6 @@ def create_user(db: Session, data: UserCreate) -> User:
     return user
 
 
-def _ensure_not_self(user: User, actor: User) -> None:
-    """Impide que el administrador desactive su propia cuenta."""
-    if user.id_user == actor.id_user:
-        raise BusinessRuleError("No puedes desactivar tu propia cuenta")
-
-
-def _release_operator_plans(db: Session, operator: Operator) -> None:
-    """Desasigna a un operario de todos los planes que no estén finalizados.
-
-    Se ejecuta en la misma transacción que la baja, así que o se hace todo o nada. Los planes
-    ``completed`` conservan su asignación como historial; el resto (generado, validado,
-    aprobado, rechazado o en ejecución) queda sin operario y habrá que reasignarlo. Las
-    intervenciones ya registradas por el operario no se tocan.
-    """
-    db.execute(
-        delete(PlanOperatorAssignment).where(
-            PlanOperatorAssignment.id_operator == operator.id_operator,
-            PlanOperatorAssignment.id_plan.in_(
-                select(Plan.id_plan).where(Plan.status != PlanStatus.completed)
-            ),
-        )
-    )
-
-
 def _apply_profile_changes(user: User, changes: dict[str, object]) -> None:
     """Aplica los cambios de los campos de perfil, comprobando que correspondan al rol."""
     for field, role in _PROFILE_FIELDS.items():
@@ -152,14 +127,6 @@ def update_user(db: Session, user: User, data: UserUpdate, actor: User) -> User:
         user.name = changes["name"]
     if changes.get("password") is not None:
         user.password_hash = hash_password(changes["password"])
-
-    is_active = changes.get("is_active")
-    if is_active is not None and is_active != user.is_active:
-        if not is_active:
-            _ensure_not_self(user, actor)
-        user.is_active = is_active
-        if not is_active and user.operator is not None:
-            _release_operator_plans(db, user.operator)
 
     _apply_profile_changes(user, changes)
 

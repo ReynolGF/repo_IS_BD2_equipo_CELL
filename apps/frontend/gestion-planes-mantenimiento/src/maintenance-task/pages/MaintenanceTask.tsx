@@ -1,51 +1,26 @@
-import { Metric } from "../components/Metric.tsx";
 import type { Task } from "../models/task.ts";
-import { DataTable } from "../components/DataTable.tsx";
-import { SeverityTag } from "../components/SeverityTag.tsx";
+import { DataTable } from "../../presentation/components/DataTable.tsx";
+import { SeverityTag } from "../../presentation/components/SeverityTag.tsx";
 import { useState } from "react";
-import { database } from "../../database-seed/database.ts";
-import { MaintenanceTaskService } from "../services/MaintenanceTaskService.ts";
+import { MaintenanceMetrics } from "../components/MaintenanceMetrics.tsx";
+import { useTasks } from "../hooks/useTasks.ts";
 
 export const MaintenanceTask = () => {
-  const maintenanceTaskService = new MaintenanceTaskService();
+  const { data: tasks } = useTasks();
 
   const allowedLines = [
     { id: "1", name: "Línea 1" },
     { id: "2", name: "Línea 2" },
     { id: "3", name: "Línea 3" },
   ];
-  const [tasks, setTasks] = useState<Task[]>(database.tasks); // Replace with actual data fetching logic
   const [line, setLine] = useState("Todas las líneas");
   const [sort, setSort] = useState({ key: "id", asc: true });
   const [type, setType] = useState("Todos");
   const [severity, setSeverity] = useState("Todas");
-  const visibleTasks: Task[] = database.tasks; // Replace with actual filtering logic
+  const visibleTasks: Task[] = tasks || []; // Replace with actual filtering logic
   return (
     <>
-      <section className="metric-grid metric-grid-compact mb-4 grid grid-cols-4 gap-[14px] max-[1240px]:grid-cols-2 max-[720px]:gap-2.5 max-[520px]:grid-cols-1">
-        <Metric
-          label="Tareas del banco"
-          value={String(visibleTasks.length).padStart(2, "0")}
-          hint={`${visibleTasks.filter((task) => task.severity === "Alta").length} de criticidad alta`}
-          color="mint"
-        />
-        <Metric
-          label="Preventivas"
-          value={String(
-            visibleTasks.filter((task) => task.type === "Preventivo").length,
-          ).padStart(2, "0")}
-          hint="Rutinas programadas"
-          color="blue"
-        />
-        <Metric
-          label="Correctivas"
-          value={String(
-            visibleTasks.filter((task) => task.type === "Correctivo").length,
-          ).padStart(2, "0")}
-          hint="Intervenciones por falla"
-          color="yellow"
-        />
-      </section>
+      <MaintenanceMetrics visibleTasks={visibleTasks} />
       <button className="button min-h-[38px] inline-flex items-center justify-center gap-[7px] rounded-full border border-line-strong px-4 text-[11.5px] font-semibold leading-none whitespace-nowrap transition hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-45 disabled:transform-none button-primary font-bold">
         ＋ Agregar tarea
       </button>

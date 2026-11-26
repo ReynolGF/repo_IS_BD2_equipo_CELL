@@ -1,5 +1,5 @@
 import { type ReactNode, useMemo } from "react";
-import type { Column } from "../models/column.ts";
+import type { Column } from "../../maintenance-task/models/column.ts";
 
 export function DataTable<T>({
   columns,

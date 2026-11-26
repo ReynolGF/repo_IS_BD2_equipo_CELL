@@ -2,7 +2,7 @@
 
 Este documento registra las decisiones técnicas y las reglas de negocio que el informe de diseño
 deja pendientes. Las filas marcadas **Propuesta** deben discutirse y confirmarse en equipo antes de
-la Fase 4 (generador de planes) y la Fase 7 (reportes).
+las fases posteriores.
 
 ## Decisiones técnicas
 
@@ -10,7 +10,7 @@ la Fase 4 (generador de planes) y la Fase 7 (reportes).
 |---|---|---|
 | Framework | FastAPI + Pydantic v2 | Acordada |
 | Acceso a datos | SQLAlchemy 2.0 **síncrono** + `psycopg` 3; `pymongo` síncrono; `redis-py` síncrono | Acordada |
-| Migraciones | Alembic | Acordada |
+| Migraciones | Alembic; migración inicial explícita (sin `create_all`), verificada contra los modelos por test | Acordada |
 | BD relacional | PostgreSQL 16 | Acordada |
 | Series temporales (NoSQL) | MongoDB 7 con *time series collections* | Propuesta |
 | Caché de estado operativo | Redis, patrón *cache-aside* con clave `equipo:{id}` | Propuesta |
@@ -26,15 +26,18 @@ pruebas más complejas). Cambiarlo más adelante es costoso.
 
 | Pendiente | Propuesta | Estado |
 |---|---|---|
-| Significado de `cobertura_sistemas` | Porcentaje de equipos de la línea con al menos una tarea en el plan | Propuesta |
-| Porcentajes por tipo | Se cumplen con tolerancia (±10 puntos); se redondea y se completa con el tipo de mayor déficit | Propuesta |
+| Significado de `cobertura_sistemas` | Número de sistemas (equipos) distintos que cubre el plan, no un porcentaje. En la base de datos: `1 ≤ system_coverage ≤ total_task_count` | **Acordada** |
+| Porcentajes por tipo | Se redondean al entero más cercano (los empates suben) y la suma de los tres enteros debe estar entre 99 y 101. En la base de datos: `BETWEEN 99 AND 101`. Si un tipo no tiene tareas suficientes, el hueco se completa con el tipo más rezagado | **Acordada (Fase 4)** |
 | Criterios de equilibrio (consulta 5) | Plan equilibrado si la desviación entre el % real y el solicitado por tipo es ≤ 10 puntos y ningún equipo concentra más de un X % de las tareas (X por definir) | Propuesta |
-| Doble asignación | Un plan por operario por fecha (PK `(id_operario, fecha_asignacion)`) | Propuesta |
-| Política de autorización por línea | Definir dónde se guarda (tabla de configuración o regla por especialidad) | **Por decidir** |
-| Duplicados semánticos de tareas | Normalizar antes de guardar: minúsculas, sin tildes, espacios colapsados | Propuesta |
+| Doble asignación | La evita el administrador al asignar; la base de datos solo impide dos planes para un operario en la misma fecha (PK `(id_operator, assignment_date)`) | **Acordada** |
+| Baja de un operario | Se le desasigna automáticamente de todos los planes no finalizados (todos menos `completed`); no se restituyen al reactivarlo | **Acordada** |
+| Política de autorización por línea | Se guarda en la tabla `line_authorization` y se consulta con `AuthorizationPolicy` (ver `seguridad-y-usuarios.md`) | **Acordada (Fase 2)** |
+| Duplicados semánticos de tareas | Comparar el texto normalizado (minúsculas, sin tildes, espacios colapsados) por equipo y tipo | **Acordada (Fase 3)** |
 | Cumplimiento | Intervenciones «cumplida» / intervenciones registradas | Propuesta |
-| Plan rechazado | Se conserva con estado `rechazado` | Propuesta |
-| Hash de contraseñas (Fase 2) | `passlib` tiene problemas con versiones recientes de `bcrypt`; evaluar `bcrypt` directo o `pwdlib` | **Por decidir** |
+| Plan rechazado | Se conserva como registro con estado `rejected`; se desasigna a todos sus operarios y no admite más cambios (estado final) | **Acordada (Fase 4)** |
+| Eliminación de usuarios | No se eliminan: se desactivan con `users.is_active`. Las FK `id_user` de los perfiles son `NOT NULL` y `RESTRICT`; no hay endpoint de borrado | **Acordada** |
+| Gestión de líneas, equipos y asignaciones de operarios | Solo el administrador | **Acordada (Fase 3)** |
+| Hash de contraseñas (Fase 2) | `bcrypt` directo con SHA-256 previo (sin `passlib`) | **Acordada (Fase 2)** |
 
 ## Contrato con el frontend
 

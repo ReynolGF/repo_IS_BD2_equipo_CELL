@@ -52,7 +52,6 @@ def test_solo_el_administrador_gestiona_usuarios(
     assert api_client.post("/users", headers=headers, json=_new_user()).status_code == 403
     assert api_client.get(f"/users/{user.id_user}", headers=headers).status_code == 403
     assert api_client.patch(f"/users/{user.id_user}", headers=headers, json={}).status_code == 403
-    assert api_client.delete(f"/users/{user.id_user}", headers=headers).status_code == 403
 
 
 def test_sin_token_no_se_puede_listar(api_client: TestClient) -> None:

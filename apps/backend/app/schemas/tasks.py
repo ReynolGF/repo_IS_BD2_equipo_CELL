@@ -2,7 +2,7 @@
 
 from typing import Self
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from app.core.text import clean_text
 from app.db.enums import Criticality, TaskType
@@ -33,6 +33,27 @@ class TaskCreate(BaseModel):
     id_equipment: int
 
     _clean = field_validator("description")(_clean_description)
+
+
+class TaskUpdate(BaseModel):
+    """Modificación parcial de una tarea. Los campos enviados no pueden ser ``null``."""
+
+    description: str | None = None
+    type: TaskType | None = None
+    criticality_level: Criticality | None = None
+    id_equipment: int | None = None
+
+    _clean = field_validator("description")(_clean_description)
+
+    @model_validator(mode="after")
+    def _not_empty_nor_null(self) -> Self:
+        """Exige al menos un campo y rechaza los enviados como ``null``."""
+        if not self.model_fields_set:
+            raise ValueError("Indique al menos un campo para modificar")
+        for field in self.model_fields_set:
+            if getattr(self, field) is None:
+                raise ValueError(f"El campo '{field}' no puede ser nulo")
+        return self
 
 
 class TaskRead(BaseModel):

@@ -91,3 +91,40 @@ def delete_task(
 ) -> None:
     """Elimina una tarea propia que no esté en ningún plan (409 si lo está)."""
     service.delete_task(db, technician, id_task)
+
+
+@router.get("/lines/{id_line}/tasks", response_model=Page[TaskRead])
+def list_line_tasks(
+    id_line: int,
+    id_equipment: int | None = Query(default=None),
+    id_creator_technician: int | None = Query(default=None),
+    type: TaskType | None = Query(default=None),
+    criticality_level: Criticality | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=100, description="Buscar en la descripción"),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    user: User = Depends(_can_read_tasks),
+    db: Session = Depends(get_db),
+) -> Page[TaskRead]:
+    """Lista las tareas de los equipos de una línea, de cualquier técnico.
+
+    Un técnico solo puede consultarlas en las líneas donde está autorizado.
+    """
+    tasks, total = service.list_for_line(
+        db,
+        user,
+        id_line,
+        id_equipment=id_equipment,
+        id_creator=id_creator_technician,
+        type_=type,
+        criticality=criticality_level,
+        search=q,
+        limit=limit,
+        offset=offset,
+    )
+    return Page[TaskRead](
+        items=[TaskRead.from_task(task) for task in tasks],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )

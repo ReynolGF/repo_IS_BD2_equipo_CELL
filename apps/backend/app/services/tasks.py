@@ -25,6 +25,7 @@ from app.models.infrastructure import EquipmentSystem
 from app.models.tasks import Task
 from app.models.users import Technician, User
 from app.repositories import authorizations as auth_repo
+from app.repositories import infrastructure as infra_repo
 from app.repositories import tasks as repo
 from app.schemas.tasks import TaskCreate, TaskUpdate
 
@@ -145,6 +146,47 @@ def list_own(
         db,
         id_creator=technician.id_technician,
         id_equipment=id_equipment,
+        type_=type_,
+        criticality=criticality,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def list_for_line(
+    db: Session,
+    user: User,
+    id_line: int,
+    *,
+    id_equipment: int | None,
+    id_creator: int | None,
+    type_: TaskType | None,
+    criticality: Criticality | None,
+    search: str | None,
+    limit: int,
+    offset: int,
+) -> tuple[Sequence[Task], int]:
+    """Lista las tareas de los equipos de una línea, de cualquier técnico (RF8).
+
+    Raises:
+        NotFoundError: La línea no existe.
+        PermissionDeniedError: Un técnico sin autorización en esa línea.
+    """
+    if infra_repo.get_line(db, id_line) is None:
+        raise NotFoundError("Línea no encontrada")
+    if user.occupation is Occupation.technician:
+        technician = user.technician
+        if (
+            technician is None
+            or auth_repo.find_active(db, technician.id_technician, id_line) is None
+        ):
+            raise PermissionDeniedError("No estás autorizado en esta línea")
+    return repo.list_tasks(
+        db,
+        id_line=id_line,
+        id_equipment=id_equipment,
+        id_creator=id_creator,
         type_=type_,
         criticality=criticality,
         search=search,

@@ -175,6 +175,24 @@ def update_equipment(db: Session, id_equipment: int, data: EquipmentUpdate) -> E
     db.commit()
     return get_equipment(db, id_equipment)
 
+
+def update_status(db: Session, id_equipment: int, status: OperationalStatus) -> EquipmentSystem:
+    """Cambia el estado operativo vigente de un equipo (RF41).
+
+    La fecha del estado solo se actualiza si el estado cambia de verdad.
+
+    Raises:
+        NotFoundError: El equipo no existe.
+    """
+    equipment = get_equipment(db, id_equipment)
+    if equipment.operational_status != status:
+        equipment.operational_status = status
+        equipment.status_date = datetime.now(UTC)
+        db.commit()
+        # Fase 6: aquí se invalida o actualiza la caché de Redis del estado operativo (RF42).
+    return get_equipment(db, id_equipment)
+
+
 def delete_equipment(db: Session, id_equipment: int) -> None:
     """Elimina un equipo que no esté asociado a líneas ni tenga tareas.
 

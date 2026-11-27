@@ -11,6 +11,7 @@ from app.schemas.common import Page
 from app.schemas.infrastructure import (
     EquipmentCreate,
     EquipmentRead,
+    EquipmentStatusUpdate,
     EquipmentUpdate,
 )
 from app.services import lines as service
@@ -78,6 +79,19 @@ def update_equipment(
 ) -> EquipmentRead:
     """Modifica el nombre o la descripción de un equipo (solo administrador)."""
     return EquipmentRead.from_equipment(service.update_equipment(db, id_equipment, body))
+
+
+@router.put("/{id_equipment}/status", response_model=EquipmentRead)
+def update_status(
+    id_equipment: int,
+    body: EquipmentStatusUpdate,
+    _user: User = Depends(_can_change_status),
+    db: Session = Depends(get_db),
+) -> EquipmentRead:
+    """Actualiza el estado operativo vigente del equipo (técnico o administrador)."""
+    return EquipmentRead.from_equipment(
+        service.update_status(db, id_equipment, body.operational_status)
+    )
 
 
 @router.delete("/{id_equipment}", status_code=status.HTTP_204_NO_CONTENT)

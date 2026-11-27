@@ -100,6 +100,11 @@ class EquipmentUpdate(_NoNulls):
     _clean_description = field_validator("description")(_clean_optional)
 
 
+class EquipmentStatusUpdate(BaseModel):
+    """Nuevo estado operativo de un equipo (RF41)."""
+
+    operational_status: OperationalStatus
+
 
 class EquipmentSummary(BaseModel):
     """Datos de un equipo."""

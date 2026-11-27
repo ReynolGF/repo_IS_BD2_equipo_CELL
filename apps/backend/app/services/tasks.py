@@ -12,18 +12,21 @@ Reglas:
   administrador y el jefe de planta ven todas.
 """
 
+from collections.abc import Sequence
 
+from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError, PermissionDeniedError
 from app.core.text import normalize_text
-from app.db.enums import TaskType
+from app.db.enums import Criticality, Occupation, TaskType
 from app.models.infrastructure import EquipmentSystem
 from app.models.tasks import Task
-from app.models.users import Technician
+from app.models.users import Technician, User
+from app.repositories import authorizations as auth_repo
 from app.repositories import tasks as repo
-from app.schemas.tasks import TaskCreate
+from app.schemas.tasks import TaskCreate, TaskUpdate
 
 _DUPLICATE = "Ya existe una tarea equivalente para ese equipo y tipo"
 
@@ -92,3 +95,113 @@ def get_task_row(db: Session, id_task: int) -> Task:
     if task is None:
         raise NotFoundError("Tarea no encontrada")
     return task
+
+
+def _technician_covers_equipment(db: Session, id_technician: int, id_equipment: int) -> bool:
+    """Indica si el técnico está autorizado en alguna línea que cubre el equipo."""
+    return any(
+        auth_repo.find_active(db, id_technician, id_line) is not None
+        for id_line in repo.lines_of_equipment(db, id_equipment)
+    )
+
+
+def get_task(db: Session, user: User, id_task: int) -> Task:
+    """Devuelve una tarea si el usuario puede verla.
+
+    Raises:
+        NotFoundError: La tarea no existe.
+        PermissionDeniedError: Un técnico pide una tarea ajena de una línea donde no está
+            autorizado.
+    """
+    task = get_task_row(db, id_task)
+    if user.occupation in (Occupation.administrator, Occupation.plant_manager):
+        return task
+    technician = user.technician
+    if (
+        technician is not None
+        and user.occupation is Occupation.technician
+        and (
+            task.id_creator_technician == technician.id_technician
+            or _technician_covers_equipment(db, technician.id_technician, task.id_equipment)
+        )
+    ):
+        return task
+    raise PermissionDeniedError("No tienes permiso para ver esta tarea")
+
+
+def list_own(
+    db: Session,
+    technician: Technician,
+    *,
+    id_equipment: int | None,
+    type_: TaskType | None,
+    criticality: Criticality | None,
+    search: str | None,
+    limit: int,
+    offset: int,
+) -> tuple[Sequence[Task], int]:
+    """Lista las tareas creadas por el técnico (RF7)."""
+    return repo.list_tasks(
+        db,
+        id_creator=technician.id_technician,
+        id_equipment=id_equipment,
+        type_=type_,
+        criticality=criticality,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def _require_owner(technician: Technician, task: Task) -> None:
+    """Lanza ``PermissionDeniedError`` si la tarea no la creó el técnico (RF7)."""
+    if task.id_creator_technician != technician.id_technician:
+        raise PermissionDeniedError("Solo el técnico que creó la tarea puede modificarla")
+
+
+def update_task(db: Session, technician: Technician, id_task: int, data: TaskUpdate) -> Task:
+    """Modifica una tarea propia, comprobando de nuevo que no quede duplicada.
+
+    Raises:
+        NotFoundError: La tarea o el nuevo equipo no existen.
+        PermissionDeniedError: La tarea es de otro técnico.
+        ConflictError: El resultado coincidiría con otra tarea.
+    """
+    task = get_task_row(db, id_task)
+    _require_owner(technician, task)
+    changes = data.model_dump(exclude_unset=True)
+    if "id_equipment" in changes:
+        _require_equipment(db, changes["id_equipment"])
+    _ensure_not_duplicate(
+        db,
+        id_equipment=changes.get("id_equipment", task.id_equipment),
+        type_=changes.get("type", task.type),
+        description=changes.get("description", task.description),
+        exclude_id=task.id_task,
+    )
+    for field, value in changes.items():
+        setattr(task, field, value)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise ConflictError(_DUPLICATE) from None
+    return get_task_row(db, id_task)
+
+
+def delete_task(db: Session, technician: Technician, id_task: int) -> None:
+    """Elimina una tarea propia que todavía no esté en ningún plan.
+
+    Raises:
+        NotFoundError: La tarea no existe.
+        PermissionDeniedError: La tarea es de otro técnico.
+        ConflictError: La tarea ya forma parte de algún plan.
+    """
+    task = get_task_row(db, id_task)
+    _require_owner(technician, task)
+    try:
+        with db.begin_nested():
+            db.execute(delete(Task).where(Task.id_task == id_task))
+    except IntegrityError:
+        raise ConflictError("No se puede eliminar la tarea: forma parte de algún plan") from None
+    db.commit()

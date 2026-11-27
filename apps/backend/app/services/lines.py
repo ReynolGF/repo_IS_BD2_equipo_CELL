@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.db.enums import OperationalStatus
-from app.models.infrastructure import EquipmentSystem, ProductionLine
+from app.models.infrastructure import EquipmentLineMembership, EquipmentSystem, ProductionLine
 from app.repositories import infrastructure as repo
 from app.schemas.infrastructure import (
     EquipmentCreate,
@@ -188,3 +188,37 @@ def delete_equipment(db: Session, id_equipment: int) -> None:
         delete(EquipmentSystem).where(EquipmentSystem.id_equipment == id_equipment),
         "No se puede eliminar el equipo: está asociado a líneas o tiene tareas",
     )
+
+
+# --- Asociación línea-equipo ----------------------------------------------------------------
+
+
+def add_equipment_to_line(db: Session, id_line: int, id_equipment: int) -> EquipmentSystem:
+    """Asocia un equipo a una línea (idempotente).
+
+    Raises:
+        NotFoundError: La línea o el equipo no existen.
+    """
+    get_line(db, id_line)
+    equipment = get_equipment(db, id_equipment)
+    if repo.get_membership(db, id_line, id_equipment) is None:
+        db.add(EquipmentLineMembership(id_line=id_line, id_equipment=id_equipment))
+        db.commit()
+    return equipment
+
+
+def remove_equipment_from_line(db: Session, id_line: int, id_equipment: int) -> None:
+    """Quita la asociación de un equipo con una línea.
+
+    Raises:
+        NotFoundError: La asociación no existe.
+    """
+    if repo.get_membership(db, id_line, id_equipment) is None:
+        raise NotFoundError("El equipo no está asociado a esa línea")
+    db.execute(
+        delete(EquipmentLineMembership).where(
+            EquipmentLineMembership.id_line == id_line,
+            EquipmentLineMembership.id_equipment == id_equipment,
+        )
+    )
+    db.commit()

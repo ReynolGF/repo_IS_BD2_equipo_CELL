@@ -9,6 +9,7 @@ from app.db.enums import Occupation
 from app.models.users import User
 from app.schemas.common import Page
 from app.schemas.infrastructure import (
+    EquipmentSummary,
     LineCreate,
     LineDetail,
     LineUpdate,
@@ -79,3 +80,28 @@ def delete_line(
 ) -> None:
     """Elimina una línea sin equipos, autorizaciones, operarios ni planes (409 si los tiene)."""
     service.delete_line(db, id_line)
+
+
+# --- Equipos de la línea --------------------------------------------------------------------
+
+
+@router.put("/lines/{id_line}/equipment/{id_equipment}", response_model=EquipmentSummary)
+def add_equipment(
+    id_line: int,
+    id_equipment: int,
+    _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> EquipmentSummary:
+    """Asocia un equipo a la línea (idempotente)."""
+    return EquipmentSummary.model_validate(service.add_equipment_to_line(db, id_line, id_equipment))
+
+
+@router.delete("/lines/{id_line}/equipment/{id_equipment}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_equipment(
+    id_line: int,
+    id_equipment: int,
+    _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    """Quita un equipo de la línea."""
+    service.remove_equipment_from_line(db, id_line, id_equipment)

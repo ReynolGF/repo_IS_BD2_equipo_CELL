@@ -9,8 +9,10 @@ from app.db.enums import OperationalStatus
 from app.models.infrastructure import (
     EquipmentLineMembership,
     EquipmentSystem,
+    LineAssignment,
     ProductionLine,
 )
+from app.models.users import Operator, User
 
 
 def _like_pattern(text: str) -> str:
@@ -118,3 +120,33 @@ def list_equipment(
 def get_membership(db: Session, id_line: int, id_equipment: int) -> EquipmentLineMembership | None:
     """Devuelve la asociación línea-equipo, o ``None`` si no existe."""
     return db.get(EquipmentLineMembership, (id_line, id_equipment))
+
+
+# --- Operarios asignados a líneas -----------------------------------------------------------
+
+
+def get_assignment(db: Session, id_operator: int, id_line: int) -> LineAssignment | None:
+    """Devuelve la asignación de un operario a una línea, o ``None`` si no existe."""
+    return db.get(LineAssignment, (id_operator, id_line))
+
+
+def list_operators_of_line(db: Session, id_line: int) -> Sequence[tuple[Operator, User]]:
+    """Lista los operarios asignados a una línea con su cuenta de usuario."""
+    rows = db.execute(
+        select(Operator, User)
+        .join(LineAssignment, LineAssignment.id_operator == Operator.id_operator)
+        .join(User, User.id_user == Operator.id_user)
+        .where(LineAssignment.id_line == id_line)
+        .order_by(Operator.id_operator)
+    ).all()
+    return [(row[0], row[1]) for row in rows]
+
+
+def list_lines_of_operator(db: Session, id_operator: int) -> Sequence[ProductionLine]:
+    """Lista las líneas en las que está asignado un operario."""
+    return db.scalars(
+        select(ProductionLine)
+        .join(LineAssignment, LineAssignment.id_line == ProductionLine.id_line)
+        .where(LineAssignment.id_operator == id_operator)
+        .order_by(ProductionLine.name, ProductionLine.id_line)
+    ).all()

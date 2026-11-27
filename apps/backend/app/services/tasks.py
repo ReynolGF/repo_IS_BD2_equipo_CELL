@@ -42,7 +42,7 @@ def _ensure_not_duplicate(
     description: str,
     exclude_id: int | None = None,
 ) -> None:
-    """Lanza ``ConflictError`` si ya hay una tarea equivalente (RF6).
+    """Lanza ``ConflictError``  si ya hay una tarea equivalente (RF6).
 
     Raises:
         ConflictError: Existe otra tarea del mismo equipo y tipo con la misma descripción

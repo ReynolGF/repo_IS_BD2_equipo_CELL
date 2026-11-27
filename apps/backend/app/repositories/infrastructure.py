@@ -50,3 +50,69 @@ def list_lines(db: Session, *, limit: int, offset: int) -> tuple[Sequence[Produc
         .offset(offset)
     ).all()
     return lines, total
+
+
+# --- Equipos --------------------------------------------------------------------------------
+
+
+def get_equipment(db: Session, id_equipment: int) -> EquipmentSystem | None:
+    """Devuelve el equipo con sus líneas, o ``None`` si no existe."""
+    return db.scalar(
+        select(EquipmentSystem)
+        .where(EquipmentSystem.id_equipment == id_equipment)
+        .options(selectinload(EquipmentSystem.lines))
+        .execution_options(populate_existing=True)
+    )
+
+
+def list_equipment(
+    db: Session,
+    *,
+    id_line: int | None = None,
+    operational_status: OperationalStatus | None = None,
+    search: str | None = None,
+    limit: int,
+    offset: int,
+) -> tuple[Sequence[EquipmentSystem], int]:
+    """Lista equipos con filtros y paginación, ordenados por nombre.
+
+    Args:
+        db: Sesión de base de datos.
+        id_line: Solo los equipos que cubre esa línea.
+        operational_status: Solo los equipos en ese estado.
+        search: Texto contenido en el nombre o la descripción.
+        limit: Máximo de resultados.
+        offset: Resultados a saltar.
+    """
+    conditions = []
+    if id_line is not None:
+        conditions.append(
+            EquipmentSystem.id_equipment.in_(
+                select(EquipmentLineMembership.id_equipment).where(
+                    EquipmentLineMembership.id_line == id_line
+                )
+            )
+        )
+    if operational_status is not None:
+        conditions.append(EquipmentSystem.operational_status == operational_status)
+    if search:
+        pattern = _like_pattern(search)
+        conditions.append(
+            EquipmentSystem.name.ilike(pattern, escape="\\")
+            | EquipmentSystem.description.ilike(pattern, escape="\\")
+        )
+    total = db.scalar(select(func.count()).select_from(EquipmentSystem).where(*conditions)) or 0
+    equipment = db.scalars(
+        select(EquipmentSystem)
+        .where(*conditions)
+        .options(selectinload(EquipmentSystem.lines))
+        .order_by(EquipmentSystem.name, EquipmentSystem.id_equipment)
+        .limit(limit)
+        .offset(offset)
+    ).all()
+    return equipment, total
+
+
+def get_membership(db: Session, id_line: int, id_equipment: int) -> EquipmentLineMembership | None:
+    """Devuelve la asociación línea-equipo, o ``None`` si no existe."""
+    return db.get(EquipmentLineMembership, (id_line, id_equipment))

@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, authorizations, equipment, health, lines, users
+from app.api import auth, authorizations, equipment, health, lines, tasks, users
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 
@@ -27,3 +27,4 @@ app.include_router(users.router)
 app.include_router(authorizations.router)
 app.include_router(lines.router)
 app.include_router(equipment.router)
+app.include_router(tasks.router)

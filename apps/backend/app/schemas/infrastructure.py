@@ -13,8 +13,8 @@ from pydantic import (
 )
 
 from app.core.text import clean_text
-from app.db.enums import OperationalStatus, Shift
-from app.models.infrastructure import EquipmentSystem, ProductionLine
+from app.db.enums import OperationalStatus
+from app.models.infrastructure import ProductionLine
 
 Name = Annotated[str, StringConstraints(min_length=1, max_length=150)]
 

@@ -1,7 +1,6 @@
 """Gestión de líneas de producción, equipos y su asociación (RF1, RF2, RF3, RF41)."""
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import delete
@@ -9,12 +8,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictError, NotFoundError
-from app.db.enums import OperationalStatus
-from app.models.infrastructure import EquipmentLineMembership, EquipmentSystem, ProductionLine
+from app.models.infrastructure import ProductionLine
 from app.repositories import infrastructure as repo
 from app.schemas.infrastructure import (
-    EquipmentCreate,
-    EquipmentUpdate,
     LineCreate,
     LineUpdate,
 )

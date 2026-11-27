@@ -1,6 +1,7 @@
 """Gestión de líneas de producción, equipos y su asociación (RF1, RF2, RF3, RF41)."""
 
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import delete
@@ -8,9 +9,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictError, NotFoundError
-from app.models.infrastructure import ProductionLine
+from app.db.enums import OperationalStatus
+from app.models.infrastructure import EquipmentSystem, ProductionLine
 from app.repositories import infrastructure as repo
 from app.schemas.infrastructure import (
+    EquipmentCreate,
+    EquipmentUpdate,
     LineCreate,
     LineUpdate,
 )
@@ -102,4 +106,85 @@ def delete_line(db: Session, id_line: int) -> None:
         delete(ProductionLine).where(ProductionLine.id_line == id_line),
         "No se puede eliminar la línea: tiene equipos, autorizaciones, operarios o planes "
         "asociados",
+    )
+
+
+# --- Equipos --------------------------------------------------------------------------------
+
+
+def create_equipment(db: Session, data: EquipmentCreate) -> EquipmentSystem:
+    """Registra un equipo o sistema con su estado operativo inicial."""
+    equipment = EquipmentSystem(
+        name=data.name,
+        description=data.description,
+        operational_status=data.operational_status,
+        status_date=datetime.now(UTC),
+    )
+    db.add(equipment)
+    db.commit()
+    return get_equipment(db, equipment.id_equipment)
+
+
+def get_equipment(db: Session, id_equipment: int) -> EquipmentSystem:
+    """Devuelve el equipo con las líneas que lo cubren.
+
+    Raises:
+        NotFoundError: El equipo no existe.
+    """
+    equipment = repo.get_equipment(db, id_equipment)
+    if equipment is None:
+        raise NotFoundError("Equipo no encontrado")
+    return equipment
+
+
+def list_equipment(
+    db: Session,
+    *,
+    id_line: int | None,
+    operational_status: OperationalStatus | None,
+    search: str | None,
+    limit: int,
+    offset: int,
+) -> tuple[Sequence[EquipmentSystem], int]:
+    """Lista equipos con filtros y paginación.
+
+    Raises:
+        NotFoundError: Se filtra por una línea que no existe.
+    """
+    if id_line is not None and repo.get_line(db, id_line) is None:
+        raise NotFoundError("Línea no encontrada")
+    return repo.list_equipment(
+        db,
+        id_line=id_line,
+        operational_status=operational_status,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def update_equipment(db: Session, id_equipment: int, data: EquipmentUpdate) -> EquipmentSystem:
+    """Modifica el nombre o la descripción de un equipo.
+
+    Raises:
+        NotFoundError: El equipo no existe.
+    """
+    equipment = get_equipment(db, id_equipment)
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(equipment, field, value)
+    db.commit()
+    return get_equipment(db, id_equipment)
+
+def delete_equipment(db: Session, id_equipment: int) -> None:
+    """Elimina un equipo que no esté asociado a líneas ni tenga tareas.
+
+    Raises:
+        NotFoundError: El equipo no existe.
+        ConflictError: Está asociado a líneas o tiene tareas.
+    """
+    get_equipment(db, id_equipment)
+    _delete_or_conflict(
+        db,
+        delete(EquipmentSystem).where(EquipmentSystem.id_equipment == id_equipment),
+        "No se puede eliminar el equipo: está asociado a líneas o tiene tareas",
     )

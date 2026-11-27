@@ -5,8 +5,10 @@ from collections.abc import Sequence
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.db.enums import OperationalStatus
 from app.models.infrastructure import (
     EquipmentLineMembership,
+    EquipmentSystem,
     ProductionLine,
 )
 

@@ -14,7 +14,7 @@ from pydantic import (
 
 from app.core.text import clean_text
 from app.db.enums import OperationalStatus
-from app.models.infrastructure import ProductionLine
+from app.models.infrastructure import EquipmentSystem, ProductionLine
 
 Name = Annotated[str, StringConstraints(min_length=1, max_length=150)]
 
@@ -73,6 +73,34 @@ class LineUpdate(_NoNulls):
     _clean = field_validator("name", "production_process")(_clean_required)
 
 
+class EquipmentCreate(BaseModel):
+    """Datos para registrar un equipo o sistema."""
+
+    name: Name
+    description: Annotated[str, StringConstraints(max_length=500)] | None = None
+    operational_status: OperationalStatus = OperationalStatus.operational
+
+    _clean_name = field_validator("name")(_clean_required)
+
+    _clean_description = field_validator("description")(_clean_optional)
+
+
+class EquipmentUpdate(_NoNulls):
+    """Modificación parcial de un equipo. El estado operativo tiene su propio endpoint.
+
+    Enviar ``description`` vacía o ``null`` borra la descripción.
+    """
+
+    _nullable: ClassVar[frozenset[str]] = frozenset({"description"})
+
+    name: Name | None = None
+    description: Annotated[str, StringConstraints(max_length=500)] | None = None
+
+    _clean_name = field_validator("name")(_clean_required)
+    _clean_description = field_validator("description")(_clean_optional)
+
+
+
 class EquipmentSummary(BaseModel):
     """Datos de un equipo."""
 
@@ -83,6 +111,19 @@ class EquipmentSummary(BaseModel):
     description: str | None
     operational_status: OperationalStatus
     status_date: datetime
+
+
+class EquipmentRead(EquipmentSummary):
+    """Equipo con las líneas que lo cubren."""
+
+    line_ids: list[int]
+
+    @classmethod
+    def from_equipment(cls, equipment: EquipmentSystem) -> Self:
+        """Construye la respuesta a partir del modelo, con las líneas ordenadas."""
+        base = EquipmentSummary.model_validate(equipment)
+        line_ids = sorted(membership.id_line for membership in equipment.lines)
+        return cls(**base.model_dump(), line_ids=line_ids)
 
 
 class LineRead(BaseModel):

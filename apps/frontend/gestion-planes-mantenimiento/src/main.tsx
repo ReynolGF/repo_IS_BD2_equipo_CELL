@@ -1,11 +1,13 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
-import {MaintenanceTask} from "./maintenance-task/pages/MaintenanceTask.tsx";
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import "./index.css";
+import { MaintenanceTaskPage } from "./maintenance-task/presentation/pages/MaintenanceTaskPage.tsx";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-createRoot(document.getElementById('root')!).render(
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
-   <MaintenanceTask/>
+    <QueryClientProvider client={new QueryClient()}>
+      <MaintenanceTaskPage />
+    </QueryClientProvider>
   </StrictMode>,
-)
+);

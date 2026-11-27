@@ -13,7 +13,7 @@ from pydantic import (
 )
 
 from app.core.text import clean_text
-from app.db.enums import OperationalStatus
+from app.db.enums import OperationalStatus, Shift
 from app.models.infrastructure import EquipmentSystem, ProductionLine
 
 Name = Annotated[str, StringConstraints(min_length=1, max_length=150)]
@@ -155,3 +155,22 @@ class LineDetail(LineRead):
             key=lambda item: item.id_equipment,
         )
         return cls(**base.model_dump(), equipment=equipment)
+
+
+class AssignedOperatorRead(BaseModel):
+    """Operario asignado a una línea (RF37)."""
+
+    id_operator: int
+    id_user: int
+    name: str
+    shift: Shift
+    is_active: bool
+
+
+class LineAssignmentRead(BaseModel):
+    """Asignación de un operario a una línea."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id_operator: int
+    id_line: int

@@ -89,9 +89,9 @@ Resuelve la decisión pendiente de `decisiones-backend.md`: **la política vive 
 
 ```python
 policy = AuthorizationPolicy(db)
-policy.can_generate(id_technician, id_line)       # bool
-policy.require_validate(id_technician, id_line)   # lanza PermissionDeniedError
-policy.technicians_who_can_generate(id_line)      # lista de técnicos
+policy.can_generate(id_technician, id_line)  # bool
+policy.require_validate(id_technician, id_line)  # lanza PermissionDeniedError
+policy.technicians_who_can_generate(id_line)  # lista de técnicos
 ```
 
 - Un técnico **inactivo** nunca puede generar ni validar, aunque conserve su fila.

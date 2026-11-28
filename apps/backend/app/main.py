@@ -3,13 +3,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, authorizations, health, users
+from app.api import auth, authorizations, equipment, health, lines, tasks, users
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 
 settings = get_settings()
 
-app = FastAPI(title="Cell - Mantenimiento Industrial", version="0.1.0")
+app = FastAPI(title="Cell - Mantenimiento Industrial", version="0.3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,3 +25,6 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(authorizations.router)
+app.include_router(lines.router)
+app.include_router(equipment.router)
+app.include_router(tasks.router)

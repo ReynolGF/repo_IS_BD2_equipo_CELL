@@ -77,7 +77,6 @@ def operator_lines(
     return [LineRead.model_validate(line) for line in assignments.list_lines(db, id_operator)]
 
 
-
 @router.get("/lines/{id_line}", response_model=LineDetail)
 def get_line(
     id_line: int,

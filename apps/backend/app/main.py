@@ -9,7 +9,7 @@ from app.core.exceptions import register_exception_handlers
 
 settings = get_settings()
 
-app = FastAPI(title="Cell - Mantenimiento Industrial", version="0.1.0")
+app = FastAPI(title="Cell - Mantenimiento Industrial", version="0.3.0")
 
 app.add_middleware(
     CORSMiddleware,

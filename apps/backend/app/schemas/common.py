@@ -10,3 +10,4 @@ class Page[T](BaseModel):
     total: int
     limit: int
     offset: int
+    
